@@ -1,5 +1,7 @@
 <?php
 
+require __DIR__ . '/functions.php';
+
 $address = "0.0.0.0";
 $port = 8060;
 $null = NULL;
@@ -20,7 +22,7 @@ while(true) {
     $reads = $connections;
     $writes = $exceptions = $null;
 
-    socket_select($reads, $writes, $exceptions, 0);
+    socket_select($reads, $writes, $exceptions, null);
 
     if (in_array($sock, $reads)) {
         $newConnection = socket_accept($sock);
@@ -37,6 +39,7 @@ while(true) {
 
         if (!empty($data)) {
             foreach($connections as $ckey => $cvalue) {
+                if ($ckey === 0) continue;
                 socket_write($cvalue, $data, strlen($data));
             }
         } else if ($data === '') {

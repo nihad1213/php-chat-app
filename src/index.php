@@ -1,3 +1,3 @@
 <?php
 
-require_once "./socket.php";
+require __DIR__ . "/socket.php";
