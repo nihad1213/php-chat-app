@@ -7,49 +7,55 @@ $port = 8060;
 $null = NULL;
 
 $sock = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+socket_set_option($sock, SOL_SOCKET, SO_REUSEADDR, 1);
 socket_bind($sock, $address, $port);
-
 socket_listen($sock);
 
-echo "Listening for new connection on port $port \n";
-
-$members = [];
-$connections = [];
+echo "WebSocket server listening on port $port\n";
 
 $connections = [$sock];
+$clients = [];
 
-while(true) {
+while (true) {
     $reads = $connections;
     $writes = $exceptions = $null;
 
     socket_select($reads, $writes, $exceptions, null);
 
     if (in_array($sock, $reads)) {
-        $newConnection = socket_accept($sock);
-        $connections[] = $newConnection;
-        $reply = "connected to the chat socker server \n";
-        socket_write($newConnection, $reply, strlen($reply));
+        $newSocket = socket_accept($sock);
+        $header = socket_read($newSocket, 1024);
+        handshake($header, $newSocket, $address, $port);
+
+        $connections[] = $newSocket;
+        $clients[(int)$newSocket] = ['socket' => $newSocket];
+
+        $welcome = pack_data("Welcome to the WebSocket chat server!\n");
+        socket_write($newSocket, $welcome, strlen($welcome));
 
         $sockIndex = array_search($sock, $reads);
         unset($reads[$sockIndex]);
     }
 
-    foreach($reads as $key=>$value) {
-        $data = socket_read($value, 1024);
+    foreach ($reads as $key => $socketResource) {
+        $data = socket_read($socketResource, 1024);
 
-        if (!empty($data)) {
-            foreach($connections as $ckey => $cvalue) {
-                if ($ckey === 0) continue;
-                socket_write($cvalue, $data, strlen($data));
+        if ($data === false || $data === '') {
+            echo "Client disconnected: $key\n";
+            unset($connections[array_search($socketResource, $connections)]);
+            unset($clients[(int)$socketResource]);
+            socket_close($socketResource);
+            continue;
+        }
+
+        $message = unmask($data);
+
+        foreach ($connections as $client) {
+            if ($client !== $sock && $client !== $socketResource) {
+                socket_write($client, pack_data($message), strlen(pack_data($message)));
             }
-        } else if ($data === '') {
-            echo "disconnecting client $key \n";
-            unset($connections[$key]);
-            socket_close($value);
         }
     }
 }
 
-
 socket_close($sock);
-
